@@ -16,9 +16,60 @@
 	var monkeys = { count: 7 };
 	var elephants = { count: 3 };
 	var objectCount = 200;
+	var dimensions;
 
 	var $body;
 	var $trees;
+
+	var collision = new function() {
+		var self = this;
+		var $body = $("body");
+		var _width = $body.width() / trees.cols,
+		    _height= $body.height() / trees.rows,
+		    aRows = trees.rows-1, aCols = trees.cols-1;
+		var grid = [];
+		for( var i=0;i<trees.rows;i++) {
+			var col = [];
+			for(var j=0;j<trees.cols;j++)
+				col.push({});
+			grid.push(col);
+		}
+		this.translatePosition = function( position ) {
+			var row = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
+			    col = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
+			return { row: row, col: col};
+		}
+		this.addObject = function ( selector ) {
+			try {
+			var pos = $(selector).offset();
+			var gridpos = self.translatePosition(pos);
+			var key = $(selector).attr("id");
+			// doesn't add based on overage
+			grid[gridpos.row][gridpos.col][key] = selector;
+			} catch (e) {
+				var i = 1;
+			}
+		}
+		this.removeObject = function ( selector, pos ) {
+			if( pos == undefined ) {
+			    pos = $(selector).offset();
+			}
+			var gridpos = this.translatePosition(pos);
+			var key = $(selector).attr("id");
+			// doesn't remove based on overage
+			delete grid[gridpos.row][gridpos.col][key]; // what happens if key doesn't exist?
+		}
+		/*this.getObjectsNear = function ( selector ) {
+			var pos = $(selector).offset();
+			var gridpos = this.translatePosition(pos);
+			return grid[row][col];
+		}*/
+		this.getObjectsByPosition = function ( pos ) {
+			var gridpos = this.translatePosition(pos);
+			// doesn't return based on overage
+			return grid[gridpos.row][gridpos.col];
+		}
+	};
 
 	var calculateDeviation = function ( devation ) {
 		return Math.random()*devation*2-devation;
@@ -34,7 +85,7 @@
 		var $mastertree = $('#object01');
 		for( var y=base.top; y<(height-$mastertree.height()/2);y+=offset.y ) {
 			for( var x=base.left; x<=width;x+=offset.x ) {
-				console.info(" Moving to ("+x+","+y+")");
+				// console.info(" Moving to ("+x+","+y+")");
 				if( Math.random() > .6 ) {
 					var $tree = $mastertree.clone();
 					var ydev = calculateDeviation(trees.deviation.top);
@@ -45,6 +96,7 @@
 								 "z-index": Math.floor(y * 1000 + ydev * 4),
 								 position: "absolute" } );
 					$body.append($tree);
+					collision.addObject($tree);
 				}
 			}
 		}
@@ -53,33 +105,25 @@
 	var _checkObscured = function (anim, progress, remaining ) {
 		var $elem = $(anim.elem);
 		var point = $elem.offset();
-		var $elemAtPt = $(document.elementFromPoint( point.left,point.top));
-		if(  $elem.attr("id") != $elemAtPt.attr("id") 
-		  && $elem.css("z-index") < $elemAtPt.css("z-index") 
-		  && $elemAtPt.hasClass("opaque") == false) {
-			$elemAtPt.filter(".tree").each( function(i,e) {
-				var $e = $(e);
-				$e.stop();
-				$e.addClass("opaque");
-			} );
-		}
+		var $elemAtPt = $(document.elementFromPoint( point.left,point.top ));
 	}
 
 	var _removeAfterAnim = function(anim) {
 		var $elem = $(anim.elem);
 		$elem.fadeOut( {done: function(anim) { 
-							$(anim.elem).remove(); 
+								$(anim.elem).filter("object").each( function(i,e) {
+									collision.removeObject(e);
+								} );
+								$(anim.elem).remove();
 							} 
 						} );
 		var point = $elem.offset();
 		var $elemAtPt = $(document.elementFromPoint( point.left,point.top));
-		if($elem.attr("id") != $elemAtPt.attr("id") && $elem.css("z-index") < $elemAtPt.css("z-index") ) {
-			$elemAtPt.filter(".tree").each( function(i,e) {
-				var $e = $(e);
-				$e.stop();
-				$e.fadeTo(75, 1, function() { $(this).removeClass("opaque")});
-			} );
-		}
+		$elemAtPt.filter(".tree").each( function(i,e) {
+			var $e = $(e);
+			$e.stop();
+			$e.fadeTo(75, 1, function() { $(this).removeClass("opaque")});
+		} );
 	};
 
 	var placeMonkeys = function(count) {
@@ -123,9 +167,10 @@
 										$bananna.animate( { top: "+=" + ($tree.height() - $bananna.height()) + "px" },{
 													duration:"slow",
 													done: function(anim){
+															_checkObscured(anim);
+															collision.addObject(anim.elem);
 															$(anim.elem).animate({ left : "+=0"},{ duration: 5000,
-																		done: _removeAfterAnim,
-																		progress: _checkObscured 
+																		done: _removeAfterAnim
 																	});
 														}
 													});
@@ -196,9 +241,20 @@
 			if(Math.random() < .3) {
 				$audio.attr('autoplay','autoplay');
 			}
+			$container.attr("_left",$container.offset().left); // store the current pos
+			collision.addObject($elephant);
 			$container.delay(100)
-					 .animate({ left: (direction=="-"?0:$body.width()) + "px" }, 
+					 .animate({ "left": (direction=="-"?0:$body.width()) + "px" }, 
 					 	      { duration: 5000 + Math.random() * 5000,
+					 	      	progress: function(anim) {
+					 	      		$container.attr("_left",$container.css("left"));
+					 	      		var $div = $(anim.elem);
+					 	      		var offset = $div.offset();
+					 	      		var $e = $div.find(".elephant");
+					 	      		collision.removeObject($e, {top:offset.top,left:parseInt($div.attr("_left"))});
+					 	      		$div.attr("_left",offset.left); // save
+					 	      		collision.addObject($e);
+					 	      	},
 					 	      	done: function(anim){
 					 	      		_removeAfterAnim(anim);
 					 	      		setTimeout( function() { placeElephants(1); }, Math.floor(Math.random() * 2000 + 3000) );
@@ -216,12 +272,17 @@
 			var width = $body.width(), height = $body.height();
 			_calculatezindex.offset = { x: width/trees.rows, y: height/trees.cols };
 		}
+		if( deviation == undefined ) {deviation = 0;}
 		var pos = row * _calculatezindex.offset.y;
 		return Math.floor( pos * 1000 + deviation * 4 );
 	};
 
 	var _updateZorder = function(anim) {
 		// get position, turn position into row
+		var $e = $(anim.elem);
+		var offset = $e.offset();
+		var pos = collision.translatePosition( { top: offset.top, left: offset.left } );
+		$e.css("z-index", _calculatezindex(pos.row));
 	}
 
 	var createPlayer = function() {
@@ -242,7 +303,18 @@
 					keyDownHandler.animate.left = undefined;
 				}
 				if( $.isEmptyObject(css) == false ) {
-					$player.animate(css,500,"linear");
+					$player.attr( $player.offset() );
+					$player.animate(css,{duration:500,
+						easing:"linear",
+						progress: function(anim){
+							var $e = $(anim.elem);
+							var offset = $e.offset();
+							collision.removeObject($e,{top:parseInt($e.attr("top")),left:parseInt($e.attr("left"))});
+							$e.attr( $e.offset() );
+							collision.addObject($e);
+							_updateZorder(anim);
+						}
+					});
 				}
 			}, 50 );
 			return function(event) {
@@ -277,6 +349,7 @@
 						"visibility" : "visible"
 					} );
 		$body.append($player);
+		collision.addObject($player);
 		$(window).on("keydown", keyDownHandler($player));
 		$(window).on("keyup", function($p) { 
 			var $player; 
@@ -289,6 +362,9 @@
 
 	var initializeLevel = function() {
 		$body = $('body');
+		var width = $body.width(),
+		   height = $body.height();
+		dimensions = { x: width/trees.rows, y: height/trees.cols };
 
 		placeTrees();
 		$trees = $('.tree').filter( function() { return ($(this).css("visibility") == "visible"); });
