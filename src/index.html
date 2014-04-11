@@ -1,0 +1,76 @@
+<html>
+	<header>
+		<!-- html css javascript jquery -->
+		<style>
+			#my-info {
+				width:100%;
+				height:0px;
+				overflow: hidden;
+			}
+			#my-name {
+				// font-size: 1em;
+			}
+			.collapsible {
+				width: 100%;
+				height: 1.5em;
+			}
+			.header,.panel{
+				color: white;
+				padding: 0em 0em 0em .5em;
+			}
+			.header {
+				border-radius: .5em .5em 0em 0em / .5em .5em 0em 0em;
+				border: black solid 1px;
+				border-bottom: 0px;
+				background-color: darkgray;
+			}
+			.panel {
+				border-radius: 0em 0em .5em .5em / 0em 0em .5em .5em;
+				border: black solid 1px;
+				background-color: gray;
+			}
+		</style>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+		<script type="text/javascript">
+			$(document).ready(
+					function() {
+						var $name = $("#my-name")
+						// this adds the text to the my-name element
+						$name.text("Tristan,Birthday is October 12");
+						$name.animate({ "font-size": "6em" });
+
+						// Tasks -
+						//  Add birthday to your name
+						//  Animate the my-name to have it grow
+						//  Add something about yourself to the my-info area
+
+						// this animates the info box to the a bigger size
+
+						$('.collapsible').on('click', function() {
+								var target = $(this).attr("target");
+								var $target = $(target);
+								if($target.height() == 0) {
+									$target.animate({ height: "400px"});
+								} else {
+									$target.animate({ height: "0px"});
+								}
+							} );
+					}
+				);
+		</script>
+	</header>
+	<body>
+		<h1 id="my-name"></h1>
+		<div id="info-panel">
+			<div id="my-info-collapsible" class="collapsible header" target="#my-info">
+				A little about me ...
+			</div>
+			<div id="my-info" class="panel">
+				My favorite colors are purple, pink, and green.<br/>
+				My favorite activity is playing computer games.<br/>
+				My favorite computer game is plants vs. zombies<br/>
+				I have two sisters: Elizabeth and Victoria.  I love them so much.<br/>
+			</div>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,84 @@
+body {
+	width: 1200px;
+	height: 800px;
+}
+
+div#sky {
+	position: absolute;
+	z-index: -1000;
+	top: 0px;
+	left: 0px;
+	width:100%;
+	height:150px;
+	z-index: 0;
+
+	background: #7abcff; /* Old browsers */
+	background: -moz-linear-gradient(top, #7abcff 0%, #60abf8 44%, #4096ee 100%); /* FF3.6+ */
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#7abcff), color-stop(44%,#60abf8), color-stop(100%,#4096ee)); /* Chrome,Safari4+ */
+	background: -webkit-linear-gradient(top, #7abcff 0%,#60abf8 44%,#4096ee 100%); /* Chrome10+,Safari5.1+ */
+	background: -o-linear-gradient(top, #7abcff 0%,#60abf8 44%,#4096ee 100%); /* Opera 11.10+ */
+	background: -ms-linear-gradient(top, #7abcff 0%,#60abf8 44%,#4096ee 100%); /* IE10+ */
+	background: linear-gradient(to bottom, #7abcff 0%,#60abf8 44%,#4096ee 100%); /* W3C */
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#7abcff', endColorstr='#4096ee',GradientType=0 ); /* IE6-9 */
+}
+
+div#ground {
+	position: absolute;
+	z-index: -1000;
+	width:100%;
+	height:700px;
+	top: 150px;
+	left: 0px;
+
+	background: #eac82e; /* Old browsers */
+	background: -moz-linear-gradient(top,  #eac82e 0%, #93670d 100%); /* FF3.6+ */
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#eac82e), color-stop(100%,#93670d)); /* Chrome,Safari4+ */
+	background: -webkit-linear-gradient(top,  #eac82e 0%,#93670d 100%); /* Chrome10+,Safari5.1+ */
+	background: -o-linear-gradient(top,  #eac82e 0%,#93670d 100%); /* Opera 11.10+ */
+	background: -ms-linear-gradient(top,  #eac82e 0%,#93670d 100%); /* IE10+ */
+	background: linear-gradient(to bottom,  #eac82e 0%,#93670d 100%); /* W3C */
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#eac82e', endColorstr='#93670d',GradientType=0 ); /* IE6-9 */
+}
+
+.tiger {
+	width: 50px;
+	height: 50px;
+}
+
+#cloud {
+	position: absoulte;
+}
+
+.object {
+	position: relative;
+	z-index: 100;
+	visibility:hidden;
+	display:inline-block;
+}
+
+.tree {
+	width:150px;
+}
+
+.bananna {
+	width: 25px;
+	z-index: 75;
+}
+
+.monkey {
+	width: 50px;
+	z-index: 50;
+}
+
+.reverse {
+	-webkit-transform: scaleX(-1);
+	-moz-transform: scaleX(-1);
+	-o-transform: scaleX(-1);
+	-ms-transform: scaleX(-1);
+	transform: scaleX(-1);
+}
+
+.opaque {
+	opacity:0.5;
+	filter:alpha(opacity=50); /* For IE8 and earlier */
+}
