@@ -15,7 +15,7 @@
 				};
 	var monkeys = { count: 7 };
 	var elephants = { count: 3 };
-	var objectCount = 200;
+	var objectCounter = 200;
 	var dimensions;
 
 	var $body;
@@ -31,44 +31,43 @@
 		for( var i=0;i<trees.rows;i++) {
 			var col = [];
 			for(var j=0;j<trees.cols;j++)
-				col.push({});
+				col.push([]);
 			grid.push(col);
-		}
+		};
 		this.translatePosition = function( position ) {
 			var row = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
 			    col = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
 			return { row: row, col: col};
-		}
+		};
 		this.addObject = function ( selector ) {
-			try {
-			var pos = $(selector).offset();
+			var $selector = $(selector);
+			var pos = $selector.offset();
+			pos.top += $selector.height(); // forces all to match off of the bottom
 			var gridpos = self.translatePosition(pos);
-			var key = $(selector).attr("id");
 			// doesn't add based on overage
-			grid[gridpos.row][gridpos.col][key] = selector;
-			} catch (e) {
-				var i = 1;
-			}
-		}
+			grid[gridpos.row][gridpos.col].push( $selector.attr("id") ); // why? allocations
+		};
 		this.removeObject = function ( selector, pos ) {
-			if( pos == undefined ) {
-			    pos = $(selector).offset();
+			var removeitem = function(a,id) {
+				var fnd = -1;
+				$.each(a, function(i,v) {if( v == id ) {fnd = i; return false; } });
+				if(fnd > -1) {var tmp = a.pop(); a[fnd] = tmp; }
+				return a;
 			}
+			var $selector = $(selector);
+			if( pos == undefined ) {
+			    pos = $selector.offset();
+			} 
+			pos.top += $selector.height(); // forces all to match off of the bottom
 			var gridpos = this.translatePosition(pos);
-			var key = $(selector).attr("id");
 			// doesn't remove based on overage
-			delete grid[gridpos.row][gridpos.col][key]; // what happens if key doesn't exist?
-		}
-		/*this.getObjectsNear = function ( selector ) {
-			var pos = $(selector).offset();
-			var gridpos = this.translatePosition(pos);
-			return grid[row][col];
-		}*/
+			removeitem(grid[gridpos.row][gridpos.col],$selector.attr("id"));
+		};
 		this.getObjectsByPosition = function ( pos ) {
 			var gridpos = this.translatePosition(pos);
 			// doesn't return based on overage
 			return grid[gridpos.row][gridpos.col];
-		}
+		};
 	};
 
 	var calculateDeviation = function ( devation ) {
@@ -89,13 +88,13 @@
 				if( Math.random() > .6 ) {
 					var $tree = $mastertree.clone();
 					var ydev = calculateDeviation(trees.deviation.top);
-					$tree.attr("id", "object"+objectCount++);
-					$tree.css( { top: Math.round(y + ydev) + "px ", 
+					$tree.attr("id", "object"+objectCounter++);
+					$tree.css( { top: Math.round(y + ydev) + "px", 
 								 left: Math.round(x + calculateDeviation(trees.deviation.left)) + "px", 
-								 visibility: "visible", 
-								 "z-index": Math.floor(y * 1000 + ydev * 4),
 								 position: "absolute" } );
 					$body.append($tree);
+					$tree.css( { visibility: "visible", 
+								 "z-index": calculateZindex($tree,ydev) } );
 					collision.addObject($tree);
 				}
 			}
@@ -189,16 +188,16 @@
 			var $monkey = $mastermonkey.clone();
 			var $audio = $masteraudio.clone();
 			var $container = $("<div/>");
-			$monkey.attr("id", "object"+objectCount++);
+			$monkey.attr("id", "object"+objectCounter++);
 			$monkey.attr("attached", $tree.attr("id") );
 			$container.css( { top: Math.round($tree.offset().top) + "px",
 						 left: Math.round(($tree.offset().left + $tree.width()/2) - $monkey.css("width")/2) + "px",
-						 "z-index" : $tree.css("z-index"),
+						 "z-index" : $tree.css('z-index'),
 						 position: "absolute",
 						 visibility : "visible" } );
-			$bananna.attr("id", "object"+objectCount++);
-			$monkey.css( "z-index", $tree.css("z-index") );
-			$bananna.css( { "z-index" : $tree.css("z-index"), position : "relative" } )
+			$bananna.attr("id", "object"+objectCounter++);
+			$monkey.css( "z-index", $tree.css('z-index') );
+			$bananna.css( { "z-index" : $tree.css('z-index'), position : "relative" } )
 			$container.append($monkey)
 					  .append($bananna)
 					  .append($audio);
@@ -219,7 +218,7 @@
 			var $roar = $masteraudio.clone();
 			$container.css({position:"absolute",display:"inline-block"});
 			$elephant = $masterelephant.clone();
-			$elephant.attr("id", "object"+objectCount++);
+			$elephant.attr("id", "object"+objectCounter++);
 			$container.append($elephant)
 			          .append($roar);
 			$body.append( $container );
@@ -234,7 +233,10 @@
 			$audio = $elephant.next();
 			$container = $elephant.parent();
 			var top = row * offset.y;
-			$container.css( {top: top,left: (direction=="+"?0:$body.width()) + "px", "z-index": top * 1000});
+			$container.css({  top: top,
+							  left: (direction=="+"?0:$body.width()) + "px",
+							});
+			$container.css("z-index", calculateZindex($elephant));
 			$elephant.css( { visibility:"visible" });
 			$elephant.removeClass( "reverse" );
 			if( direction == '+' ) {$elephant.addClass( "reverse" );}
@@ -245,20 +247,20 @@
 			collision.addObject($elephant);
 			$container.delay(100)
 					 .animate({ "left": (direction=="-"?0:$body.width()) + "px" }, 
-					 	      { duration: 5000 + Math.random() * 5000,
-					 	      	progress: function(anim) {
-					 	      		$container.attr("_left",$container.css("left"));
-					 	      		var $div = $(anim.elem);
-					 	      		var offset = $div.offset();
-					 	      		var $e = $div.find(".elephant");
-					 	      		collision.removeObject($e, {top:offset.top,left:parseInt($div.attr("_left"))});
-					 	      		$div.attr("_left",offset.left); // save
-					 	      		collision.addObject($e);
-					 	      	},
-					 	      	done: function(anim){
-					 	      		_removeAfterAnim(anim);
-					 	      		setTimeout( function() { placeElephants(1); }, Math.floor(Math.random() * 2000 + 3000) );
-					 	      	}});
+						      { duration: 5000 + Math.random() * 5000,
+						    	progress: function(anim) {
+						    		$container.attr("_left",$container.css("left"));
+						    		var $div = $(anim.elem);
+						    		var offset = $div.offset();
+						    		var $e = $div.find(".elephant");
+						    		collision.removeObject($e, {top:offset.top,left:parseInt($div.attr("_left"))});
+						    		$div.attr("_left",offset.left); // save
+						    		collision.addObject($e);
+						    	},
+						    	done: function(anim){
+						    		_removeAfterAnim(anim);
+						    		setTimeout( function() { placeElephants(1); }, Math.floor(Math.random() * 2000 + 3000) );
+						    	}});
 		};
 		while(count-- > 0) {
 			var row = Math.floor( Math.random() * trees.rows );
@@ -267,23 +269,9 @@
 		}
 	};
 
-	var _calculatezindex = function( row, deviation) {
-		if( typeof _calculatezindex.offset === "undefined" ) {
-			var width = $body.width(), height = $body.height();
-			_calculatezindex.offset = { x: width/trees.rows, y: height/trees.cols };
-		}
-		if( deviation == undefined ) {deviation = 0;}
-		var pos = row * _calculatezindex.offset.y;
-		return Math.floor( pos * 1000 + deviation * 4 );
+	var calculateZindex = function( $selector ) {
+		return Math.round( ($selector.offset().top + $selector.height()) + 100 );
 	};
-
-	var _updateZorder = function(anim) {
-		// get position, turn position into row
-		var $e = $(anim.elem);
-		var offset = $e.offset();
-		var pos = collision.translatePosition( { top: offset.top, left: offset.left } );
-		$e.css("z-index", _calculatezindex(pos.row));
-	}
 
 	var createPlayer = function() {
 		var keyDownHandler = function( $p ) {
@@ -312,9 +300,9 @@
 							collision.removeObject($e,{top:parseInt($e.attr("top")),left:parseInt($e.attr("left"))});
 							$e.attr( $e.offset() );
 							collision.addObject($e);
-							_updateZorder(anim);
-						}
-					});
+							var z = calculateZindex($e);
+							$e.css('z-index', z);
+						}});
 				}
 			}, 50 );
 			return function(event) {
@@ -339,25 +327,21 @@
 		$player.attr("id", "player01");
 		$player.addClass("player");
 		var pos = (trees.rows - 1);
-
 		// add the player to the bottom left
-		$player.css( { "z-index": _calculatezindex( pos, 0 ),
-						"left": $trees.first().width(),
-						"top" : $body.height(),
-						"position" : "absolute",
-						"display" : "inline-block",
-						"visibility" : "visible"
-					} );
+		$player.css( {  "left": $trees.first().width(),
+				"top" : $body.height(),
+				"position" : "absolute" } );
 		$body.append($player);
+		$player.css( {  /*"z-index": calculateZindex($player),*/
+						"visibility" : "visible" } );
 		collision.addObject($player);
 		$(window).on("keydown", keyDownHandler($player));
-		$(window).on("keyup", function($p) { 
-			var $player; 
+		$(window).on("keyup", function($p) {
 			return function(event) {
 				$("#player01").stop();
 				keyDownHandler.animate.top = undefined;
 				keyDownHandler.animate.left = undefined;
-			} }($player) );
+			} }($player));
 	};
 
 	var initializeLevel = function() {
