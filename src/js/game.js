@@ -11,7 +11,7 @@
 				};
 	var trees = { rows: 10,
 				  cols: 10,
-				  deviation: {top:25,left:25}
+				  deviation: {top:0,left:0}
 				};
 	var monkeys = { count: 7 };
 	var elephants = { count: 3 };
@@ -85,7 +85,7 @@
 		for( var y=base.top; y<(height-$mastertree.height()/2);y+=offset.y ) {
 			for( var x=base.left; x<=width;x+=offset.x ) {
 				// console.info(" Moving to ("+x+","+y+")");
-				if( Math.random() > .6 ) {
+				/*if( Math.random() > .6 )*/ {
 					var $tree = $mastertree.clone();
 					var ydev = calculateDeviation(trees.deviation.top);
 					$tree.attr("id", "object"+objectCounter++);
@@ -103,8 +103,29 @@
 
 	var _checkObscured = function (anim, progress, remaining ) {
 		var $elem = $(anim.elem);
-		var point = $elem.offset();
-		var $elemAtPt = $(document.elementFromPoint( point.left,point.top ));
+		var offset = $elem.offset();
+		var point = { top: offset.top + $elem.height(), left: offset.left + $elem.width() }
+		point.top += $elem.height();
+		$.each( collision.getObjectsByPosition(point), function(i,id) {
+			var $selector = $( "#"+id);
+			if( $selector.hasClass("tree") 
+				&& !$selector.hasClass("opaque") 
+				// && $selector.css("z-image") > $elem.css("z-image") 
+				) {
+				var spos = $selector.offset();
+				var ext = { top: spos.top + $selector.height(), left: spos.left + $selector.width() };
+				if( spos.top - offset.top <= 0 && ext.top - point.top >= 0 ) {
+console.log( spos.top, offset.top );
+				//	if( spos.left - offset.left <= 0 && ext.left - point.left >= 0 ) {
+						$selector.addClass("opaque");
+						// $selector.stop();
+						/*$selector.fadeTo(75, 1, function() { 
+							$(this).addClass("opaque");
+						} );*/
+				//	}
+				}
+			}
+		} );
 	}
 
 	var _removeAfterAnim = function(anim) {
@@ -117,12 +138,12 @@
 							} 
 						} );
 		var point = $elem.offset();
-		var $elemAtPt = $(document.elementFromPoint( point.left,point.top));
-		$elemAtPt.filter(".tree").each( function(i,e) {
+		// var $elemAtPt = $(document.elementFromPoint( point.left,point.top));
+		/*$elemAtPt.filter(".tree").each( function(i,e) {
 			var $e = $(e);
 			$e.stop();
 			$e.fadeTo(75, 1, function() { $(this).removeClass("opaque")});
-		} );
+		} );*/
 	};
 
 	var placeMonkeys = function(count) {
