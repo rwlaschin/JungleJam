@@ -11,7 +11,8 @@
 				};
 	var trees = { rows: 10,
 				  cols: 10,
-				  deviation: {top:0,left:0}
+				  deviation: {top:0,left:0},
+				  distribution: 1 // .3
 				};
 	var monkeys = { count: 7 };
 	var elephants = { count: 3 };
@@ -34,39 +35,107 @@
 				col.push([]);
 			grid.push(col);
 		};
-		this.translatePosition = function( position ) {
+		var translatePosition = function( topleft ) {
 			var row = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
 			    col = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
 			return { row: row, col: col};
 		};
-		this.addObject = function ( selector ) {
+		var translateBox = function( topleft, bottomright ) {
+			var position = topleft
+			var top = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
+			    left = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
+			// switching 
+			position = bottomright;
+			var bottom = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
+			    right = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
+			return { top: top, left: left, bottom: bottom, right: right};
+		};
+		var walkRegion = function( region, cbf ) {
+			for(var r=region.top; r <= region.bottom; r++) {
+				for(var c=region.left; c<=region.right;c++) {
+					try{
+						cbf( grid[r][c], r, c );
+					} catch(e) {
+						console.error("Callback threw exception", e);
+					}
+				}
+			}
+		};
+		var processObjectBox = function ( selector, altpos, cbf ) {
+			var processList = function( list, row, col ) {
+				try{
+					cbf( $selector, list, r, c );
+				} catch(e) {
+					console.error("Callback threw exception", e);
+				}
+			}
 			var $selector = $(selector);
+			var topleft = altpos || $selector.offset();
+			var bottomright = { top: topleft.top + $selector.height(),left: topleft.left + $selector.width() };
+			var box = translateBox(topleft,bottomright);
+			walkRegion( box, processList );
+		};
+		this.addObject = function ( selector ) {
+			var add = function( $selector, list, row, column ) {
+				list.push($selector.attr("id"));
+			}
+			processObjectBox( selector, null, add);
+			/*var $selector = $(selector);
 			var pos = $selector.offset();
 			pos.top += $selector.height(); // forces all to match off of the bottom
-			var gridpos = self.translatePosition(pos);
+			var gridpos = translatePosition(pos);
 			// doesn't add based on overage
-			grid[gridpos.row][gridpos.col].push( $selector.attr("id") ); // why? allocations
+			grid[gridpos.row][gridpos.col].push( $selector.attr("id") ); // why? allocations*/
 		};
 		this.removeObject = function ( selector, pos ) {
 			var removeitem = function(a,id) {
 				var fnd = -1;
-				$.each(a, function(i,v) {if( v == id ) {fnd = i; return false; } });
-				if(fnd > -1) {var tmp = a.pop(); a[fnd] = tmp; }
+				$.each(a, function(i,v) {
+					if( v == id ) {
+						fnd = i; return false; 
+					} });
+				if(fnd > -1) { 
+					var tmp = a.pop(); 
+					if(fnd != a.length) {
+						a[fnd] = tmp;
+					} 
+				} else {
+					// this is should never happen
+					// if it does then there is a problem
+					// removing objects from collision list
+					console.error("Unable to find " + id);
+				}
 				return a;
 			}
-			var $selector = $(selector);
+			processObjectBox( selector, pos, removeitem);
+			/*var $selector = $(selector);
 			if( pos == undefined ) {
 			    pos = $selector.offset();
 			} 
 			pos.top += $selector.height(); // forces all to match off of the bottom
-			var gridpos = this.translatePosition(pos);
+			var gridpos = translatePosition(pos);
 			// doesn't remove based on overage
-			removeitem(grid[gridpos.row][gridpos.col],$selector.attr("id"));
+			removeitem(grid[gridpos.row][gridpos.col],$selector.attr("id"));*/
 		};
 		this.getObjectsByPosition = function ( pos ) {
-			var gridpos = this.translatePosition(pos);
+			var gridpos = translatePosition(pos);
 			// doesn't return based on overage
 			return grid[gridpos.row][gridpos.col];
+		};
+		this.getObjectsByRegion = function ( pos, size ) {
+			var buildObjectList = function( list, row, column ) {
+				$.each( list, function(i,item) {
+					if( item in _dup ) {
+						_list.push(item);
+					}
+				});
+			}
+			var _dup = {}, _list = [];
+			var gridpos = translatePosition(pos);
+			var bottomright = { bottom: pos.top + size.height, right: pos.left + size.width};
+			var region = translateBox(pos,bottomright);
+			walkRegion( region, buildObjectList );
+			return _list;
 		};
 	};
 
@@ -84,8 +153,7 @@
 		var $mastertree = $('#object01');
 		for( var y=base.top; y<(height-$mastertree.height()/2);y+=offset.y ) {
 			for( var x=base.left; x<=width;x+=offset.x ) {
-				// console.info(" Moving to ("+x+","+y+")");
-				/*if( Math.random() > .6 )*/ {
+				if( Math.random() <= trees.distribution ) {
 					var $tree = $mastertree.clone();
 					var ydev = calculateDeviation(trees.deviation.top);
 					$tree.attr("id", "object"+objectCounter++);
@@ -101,49 +169,72 @@
 		}
 	};
 
-	var _checkObscured = function (anim, progress, remaining ) {
-		var $elem = $(anim.elem);
-		var offset = $elem.offset();
-		var point = { top: offset.top + $elem.height(), left: offset.left + $elem.width() }
-		point.top += $elem.height();
-		$.each( collision.getObjectsByPosition(point), function(i,id) {
-			var $selector = $( "#"+id);
-			if( $selector.hasClass("tree") 
-				&& !$selector.hasClass("opaque") 
-				// && $selector.css("z-image") > $elem.css("z-image") 
-				) {
-				var spos = $selector.offset();
-				var ext = { top: spos.top + $selector.height(), left: spos.left + $selector.width() };
-				if( spos.top - offset.top <= 0 && ext.top - point.top >= 0 ) {
-console.log( spos.top, offset.top );
-				//	if( spos.left - offset.left <= 0 && ext.left - point.left >= 0 ) {
-						$selector.addClass("opaque");
-						// $selector.stop();
-						/*$selector.fadeTo(75, 1, function() { 
-							$(this).addClass("opaque");
-						} );*/
-				//	}
+	var collideObjects = function( $actor, cbf ) {
+		var getExtents = function( $elem, offset) {
+			return { top: offset.top + $elem.height(), left: offset.left + $elem.width() };
+		}
+		var aoffset = $actor.offset();
+		try {
+			var aextent = getExtents($actor,aoffset);
+			$.each( collision.getObjectsByPosition(aextent), function(i,id) {
+				var $target = $( "#"+id);
+				var toffset = $target.offset();
+				var textent = getExtents($target,toffset);
+				var isTopIn =    ( aoffset.top - toffset.top > 0  && aoffset.top - textent.top < 0 );
+				var isBottomIn = ( aextent.top - toffset.top > 0  && aextent.top - textent.top < 0 );
+				var isLeftIn =   ( aoffset.left - toffset.left > 0 && aoffset.left - textent.left < 0 );
+				var isRightIn =  ( aextent.left - toffset.left > 0 && aextent.left - textent.left < 0 );
+				var isTopLeftOut = !( aoffset.top - toffset.top >= 0 || aoffset.left - toffset.left <= 0 );
+				var isBottomRightOut = !( aextent.top - textent.top >= 0 || aextent.left - textent.left <= 0 );
+				if(    isTopIn || isLeftIn || isBottomIn || isRightIn // any point is inside
+					|| (isTopLeftOut && isBottomRightOut ) ) {
+					try {cbf.call($actor[0],$target[0]);}catch(e){}
 				}
+			});
+		} catch (e) {
+			// this is should never happen
+			// if it does then there is a problem
+			// removing objects from collision list
+		}
+	};
+
+	var _checkObscured = function (anim, progress, remaining ) {
+		collideObjects($(anim.elem),function(target){
+			var $target = $(target);
+			if( $target.hasClass("tree") 
+			&&  $(this).css('z-index') < $target.css('z-index') ) {
+				$target.addClass("opaque");
 			}
-		} );
+		});
+	}
+
+	var _checkCollisions = function (anim) {
+		collideObjects($(anim.elem),function(target){
+			var $target = $(target);
+			if( $target.hasClass("tree") ) {
+				$target.addClass("opaque");
+			}
+		});
 	}
 
 	var _removeAfterAnim = function(anim) {
 		var $elem = $(anim.elem);
 		$elem.fadeOut( {done: function(anim) { 
-								$(anim.elem).filter("object").each( function(i,e) {
+								$(anim.elem).andSelf().filter("object").each( function(i,e) {
 									collision.removeObject(e);
 								} );
 								$(anim.elem).remove();
 							} 
 						} );
-		var point = $elem.offset();
-		// var $elemAtPt = $(document.elementFromPoint( point.left,point.top));
-		/*$elemAtPt.filter(".tree").each( function(i,e) {
-			var $e = $(e);
-			$e.stop();
-			$e.fadeTo(75, 1, function() { $(this).removeClass("opaque")});
-		} );*/
+		collideObjects($(anim.elem),function(target){
+			var $target = $(target);
+			if( $target.hasClass("tree") ) {
+				$target.stop();
+				$target.fadeTo(75, 1, function() { 
+					$(this).removeClass("opaque");
+				});
+			}
+		});
 	};
 
 	var placeMonkeys = function(count) {
@@ -321,8 +412,8 @@ console.log( spos.top, offset.top );
 							collision.removeObject($e,{top:parseInt($e.attr("top")),left:parseInt($e.attr("left"))});
 							$e.attr( $e.offset() );
 							collision.addObject($e);
-							var z = calculateZindex($e);
-							$e.css('z-index', z);
+							$e.css('z-index', calculateZindex($e) );
+							_checkCollisions(anim);
 						}});
 				}
 			}, 50 );
