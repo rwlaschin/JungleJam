@@ -36,12 +36,12 @@
 			grid.push(col);
 		};
 		var translatePosition = function( topleft ) {
-			var row = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
-			    col = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
+			var row = Math.floor( Math.min( Math.max(topleft.top,0) / _height, aRows) ),
+			    col = Math.floor( Math.min( Math.max(topleft.left,0) / _width, aCols) );
 			return { row: row, col: col};
 		};
 		var translateBox = function( topleft, bottomright ) {
-			var position = topleft
+			var position = topleft;
 			var top = Math.floor( Math.min( Math.max(position.top,0) / _height, aRows) ),
 			    left = Math.floor( Math.min( Math.max(position.left,0) / _width, aCols) );
 			// switching 
@@ -51,10 +51,10 @@
 			return { top: top, left: left, bottom: bottom, right: right};
 		};
 		var walkRegion = function( region, cbf ) {
-			for(var r=region.top; r <= region.bottom; r++) {
-				for(var c=region.left; c<=region.right;c++) {
+			for(var row=region.top; row <= region.bottom; row++) {
+				for(var col=region.left; col<=region.right;col++) {
 					try{
-						cbf( grid[r][c], r, c );
+						cbf( grid[row][col], row, col );
 					} catch(e) {
 						console.error("Callback threw exception", e);
 					}
@@ -64,7 +64,7 @@
 		var processObjectBox = function ( selector, altpos, cbf ) {
 			var processList = function( list, row, col ) {
 				try{
-					cbf( $selector, list, r, c );
+					cbf( $selector, list, row, col );
 				} catch(e) {
 					console.error("Callback threw exception", e);
 				}
@@ -88,24 +88,25 @@
 			grid[gridpos.row][gridpos.col].push( $selector.attr("id") ); // why? allocations*/
 		};
 		this.removeObject = function ( selector, pos ) {
-			var removeitem = function(a,id) {
+			var removeitem = function($sel,list,row,col) {
+				var id = $sel.attr("id");
 				var fnd = -1;
-				$.each(a, function(i,v) {
+				$.each(list, function(i,v) {
 					if( v == id ) {
 						fnd = i; return false; 
 					} });
 				if(fnd > -1) { 
-					var tmp = a.pop(); 
-					if(fnd != a.length) {
-						a[fnd] = tmp;
+					var tmp = list.pop(); 
+					if(fnd != list.length) {
+						list[fnd] = tmp;
 					} 
 				} else {
 					// this is should never happen
 					// if it does then there is a problem
 					// removing objects from collision list
-					console.error("Unable to find " + id);
+					// console.error("Unable to find " + id);
 				}
-				return a;
+				// return list;
 			}
 			processObjectBox( selector, pos, removeitem);
 			/*var $selector = $(selector);
@@ -125,14 +126,15 @@
 		this.getObjectsByRegion = function ( pos, size ) {
 			var buildObjectList = function( list, row, column ) {
 				$.each( list, function(i,item) {
-					if( item in _dup ) {
+					if( ! (item in _dup) ) {
 						_list.push(item);
+						_dup[item] = 1;
 					}
 				});
 			}
 			var _dup = {}, _list = [];
 			var gridpos = translatePosition(pos);
-			var bottomright = { bottom: pos.top + size.height, right: pos.left + size.width};
+			var bottomright = { top: pos.top + size.height, left: pos.left + size.width};
 			var region = translateBox(pos,bottomright);
 			walkRegion( region, buildObjectList );
 			return _list;
@@ -172,11 +174,15 @@
 	var collideObjects = function( $actor, cbf ) {
 		var getExtents = function( $elem, offset) {
 			return { top: offset.top + $elem.height(), left: offset.left + $elem.width() };
-		}
+		};
+		var getExtents = function( $elem, offset) {
+			return { top: offset.top + $elem.height(), left: offset.left + $elem.width() };
+		};
 		var aoffset = $actor.offset();
+		var asize = { height:$actor.height(),width:$actor.width()};
 		try {
 			var aextent = getExtents($actor,aoffset);
-			$.each( collision.getObjectsByPosition(aextent), function(i,id) {
+			$.each( collision.getObjectsByRegion(aoffset,asize), function(i,id) {
 				var $target = $( "#"+id);
 				var toffset = $target.offset();
 				var textent = getExtents($target,toffset);
@@ -210,9 +216,24 @@
 
 	var _checkCollisions = function (anim) {
 		collideObjects($(anim.elem),function(target){
+			function getBottom($elem) {
+				var off = $elem.offset();
+				off.top += $elem.height();
+				return off;
+			}
 			var $target = $(target);
+			var $this = $(this);
+			var mbottom = getBottom($this);
+			var tbottom = getBottom($target);
+			var direction = $this.attr("top") - $this.offset().top; // neg is up, pos is down
 			if( $target.hasClass("tree") ) {
-				$target.addClass("opaque");
+				// if going up and if bottom is lower, stop
+				// if going down and bottom is higher, stop
+				if(    (mbottom.top < tbottom.top && direction <= 0)
+					|| (mbottom.top > tbottom.top && direction >= 0) ) {
+					$this.stop();
+console.info("Bumping into tree");
+				}
 			}
 		});
 	}
@@ -229,10 +250,7 @@
 		collideObjects($(anim.elem),function(target){
 			var $target = $(target);
 			if( $target.hasClass("tree") ) {
-				$target.stop();
-				$target.fadeTo(75, 1, function() { 
-					$(this).removeClass("opaque");
-				});
+				$target.removeClass("opaque");
 			}
 		});
 	};
