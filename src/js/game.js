@@ -16,6 +16,7 @@
 				};
 	var monkeys = { count: 7 };
 	var elephants = { count: 3 };
+	var objectBase;
 	var objectCounter = 200;
 	var dimensions;
 
@@ -23,12 +24,13 @@
 	var $trees;
 
 	var collision = new function() {
+		var debug = false;
 		var self = this;
 		var $body = $("body");
 		var _width = $body.width() / trees.cols,
 		    _height= $body.height() / trees.rows,
 		    aRows = trees.rows-1, aCols = trees.cols-1;
-		var grid = [];
+		var grid = []; // moving to view with debug
 		for( var i=0;i<trees.rows;i++) {
 			var col = [];
 			for(var j=0;j<trees.cols;j++)
@@ -75,17 +77,31 @@
 			var box = translateBox(topleft,bottomright);
 			walkRegion( box, processList );
 		};
+		// Debug start ---------------------------------
+		this.findAll = function ( id ) {
+			function find( list, row, column ) {
+				$.each(list, function(i,v) {
+					if( v == id ) {
+						count+=1;
+						console.info( "Found: " + id + " ("+i+") " + " " +row+","+column );
+					} 
+				});
+			}
+			if( debug ) {
+				var count = 0;
+				walkRegion( { top: 0, bottom: 9, left: 0, right: 9 }, find );
+				if( count > 0 ) {
+					console.info("Found: " + id + " " + count + " times");
+				}
+			}
+		};
+
+		// Debug end ---------------------------------
 		this.addObject = function ( selector ) {
 			var add = function( $selector, list, row, column ) {
 				list.push($selector.attr("id"));
 			}
 			processObjectBox( selector, null, add);
-			/*var $selector = $(selector);
-			var pos = $selector.offset();
-			pos.top += $selector.height(); // forces all to match off of the bottom
-			var gridpos = translatePosition(pos);
-			// doesn't add based on overage
-			grid[gridpos.row][gridpos.col].push( $selector.attr("id") ); // why? allocations*/
 		};
 		this.removeObject = function ( selector, pos ) {
 			var removeitem = function($sel,list,row,col) {
@@ -100,27 +116,15 @@
 					if(fnd != list.length) {
 						list[fnd] = tmp;
 					} 
-				} else {
-					// this is should never happen
-					// if it does then there is a problem
-					// removing objects from collision list
-					// console.error("Unable to find " + id);
+				} else if(debug) {
+					console.error("Unable to find " + id);
 				}
-				// return list;
 			}
 			processObjectBox( selector, pos, removeitem);
-			/*var $selector = $(selector);
-			if( pos == undefined ) {
-			    pos = $selector.offset();
-			} 
-			pos.top += $selector.height(); // forces all to match off of the bottom
-			var gridpos = translatePosition(pos);
-			// doesn't remove based on overage
-			removeitem(grid[gridpos.row][gridpos.col],$selector.attr("id"));*/
 		};
 		this.getObjectsByPosition = function ( pos ) {
+			// this is for mouse clicking
 			var gridpos = translatePosition(pos);
-			// doesn't return based on overage
 			return grid[gridpos.row][gridpos.col];
 		};
 		this.getObjectsByRegion = function ( pos, size ) {
@@ -166,9 +170,12 @@
 					$tree.css( { visibility: "visible", 
 								 "z-index": calculateZindex($tree,ydev) } );
 					collision.addObject($tree);
+					collision.findAll($tree.attr("id"));
 				}
 			}
 		}
+		objectBase = objectCounter + 200;
+		objectCounter = objectBase;
 	};
 
 	var collideObjects = function( $actor, cbf ) {
@@ -229,7 +236,7 @@
 			if( $target.hasClass("tree") ) {
 				// if going up and if bottom is lower, stop
 				// if going down and bottom is higher, stop
-				if(    (mbottom.top < tbottom.top && direction <= 0)
+				if(    ((mbottom.top - tbottom.top) < 5 && direction <= 0)
 					|| (mbottom.top > tbottom.top && direction >= 0) ) {
 					$this.stop();
 console.info("Bumping into tree");
@@ -240,11 +247,26 @@ console.info("Bumping into tree");
 
 	var _removeAfterAnim = function(anim) {
 		var $elem = $(anim.elem);
+		$elem.find(".object").andSelf().each( function(i,e) {
+			var $e = $(e);
+			if( $e.attr("top") !== undefined ) {
+				collision.removeObject($e, {
+					top:parseInt($e.attr("top")),
+					left:parseInt($e.attr("left")) 
+				});
+				$e.attr($e.offset()); // update to use new values for next loop
+			}
+		} );
+		collision.addObject($elem); // adding the final position
 		$elem.fadeOut( {done: function(anim) { 
-								$(anim.elem).andSelf().filter("object").each( function(i,e) {
-									collision.removeObject(e);
+								var $e = $(anim.elem);
+								$e.find(".object").andSelf().each( function(i,e) {
+									if( $(e).attr("top") !== undefined ) {
+										collision.removeObject(e);
+										collision.findAll($(e).attr("id"));
+									}
 								} );
-								$(anim.elem).remove();
+								$e.remove();
 							} 
 						} );
 		collideObjects($(anim.elem),function(target){
@@ -340,6 +362,7 @@ console.info("Bumping into tree");
 		}
 	}
 
+	var elephantrecord = {};
 	var placeElephants = function(count) {
 		$masterelephant = $("#enemy01");
 		$masteraudio = $("#elephantRoar");
@@ -354,6 +377,7 @@ console.info("Bumping into tree");
 			$body.append( $container );
 			$elephant.load(function(){placeElephant.call(this,row,direction);});
 		};
+		// debug
 		var placeElephant = function(row,direction){
 			var width = $body.width(),
 				height = $body.height();
@@ -373,19 +397,24 @@ console.info("Bumping into tree");
 			if(Math.random() < .3) {
 				$audio.attr('autoplay','autoplay');
 			}
-			$container.attr("_left",$container.offset().left); // store the current pos
+			$elephant.attr($elephant.offset());
 			collision.addObject($elephant);
+			elephantrecord[$elephant.attr("id")] = [];
+			elephantrecord[$elephant.attr("id")].push($elephant.offset());
 			$container.delay(100)
 					 .animate({ "left": (direction=="-"?0:$body.width()) + "px" }, 
 						      { duration: 5000 + Math.random() * 5000,
 						    	progress: function(anim) {
-						    		$container.attr("_left",$container.css("left"));
-						    		var $div = $(anim.elem);
-						    		var offset = $div.offset();
-						    		var $e = $div.find(".elephant");
-						    		collision.removeObject($e, {top:offset.top,left:parseInt($div.attr("_left"))});
-						    		$div.attr("_left",offset.left); // save
+						    		var $e = $(anim.elem).find(".elephant");
+						    		collision.removeObject($e, {
+						    					top:parseInt($e.attr("top")),
+						    					left:parseInt($e.attr("left"))
+						    				});
+						    		$e.attr($e.offset()); // update to use new values for next loop
 						    		collision.addObject($e);
+						    		if($e.attr("id") in elephantrecord) {
+							    		elephantrecord[$e.attr("id")].push($e.offset());
+							    	}
 						    	},
 						    	done: function(anim){
 						    		_removeAfterAnim(anim);
@@ -488,6 +517,13 @@ console.info("Bumping into tree");
 			setTimeout( function() { placeElephants(elephants.count); }, 0 );
 			createPlayer();
 		}
+
+		// reset the number to keep from having overflow issues.
+		setInterval( function() {
+			var css = {};
+			if( objectCounter > 100000) { 
+				objectCounter = objectBase;
+			}}, 10000);
 	};
 
 	initializeLevel();
